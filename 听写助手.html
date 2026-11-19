@@ -28,7 +28,8 @@ body{
 }
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);flex:none;flex-wrap:wrap}
-.logo{color:var(--yellow);font-weight:700;font-size:19px;letter-spacing:.5px;margin-right:2px}
+.logo{color:var(--yellow);font-weight:700;font-size:19px;letter-spacing:.5px;margin-right:2px;cursor:pointer;user-select:none}
+.logo:active{opacity:.65}
 .tabs{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
 .tab{padding:7px 16px;border-radius:8px;font-size:15px;color:#c9d1e0;border:none;background:transparent;font-family:inherit;cursor:pointer;font-weight:600}
 .tab.on{background:var(--yellow);color:#101216}
@@ -149,7 +150,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
 <body>
 <div id="app">
   <header>
-    <span class="logo">君意-听写助手</span>
+    <span class="logo" id="logoBtn" title="点这里看使用说明">君意-听写助手</span>
     <div class="tabs">
       <button class="tab on" data-v="dict">听写</button>
       <button class="tab" data-v="input">词表</button>
@@ -1441,19 +1442,18 @@ function copyText(text, cb){
   } else { legacy(); }
 }
 
-/* ---------- 首次打开的使用说明 ---------- */
-var KEY_GUIDE = "dict_guide_seen_v1";
+/* ---------- 使用说明 ---------- */
+/* 每次打开/刷新页面都弹一次; 点页面左上角「君意-听写助手」也能随时打开 */
 var GUIDE_PROMPT = "以空格间隔开每个单词或者词语或者句子。以纯文本发给我，不需要任何多余回复。";
 
 function maybeShowGuide(){
-  var seen = false;
-  try{ seen = !!localStorage.getItem(KEY_GUIDE); }catch(e){}
-  if(seen) return;
   $("guide").style.display = "block";
 }
 function closeGuide(){
   $("guide").style.display = "none";
-  try{ localStorage.setItem(KEY_GUIDE, "1"); }catch(e){}
+}
+function openGuide(){
+  $("guide").style.display = "block";
 }
 
 /* ---------- 从剪贴板粘贴 ---------- */
@@ -1711,6 +1711,11 @@ function bind(){
   };
   $("btnPaste").onclick = function(){ pasteFromClipboard(); };
   $("btnGuideClose").onclick = function(){ closeGuide(); };
+  $("logoBtn").onclick = function(){ openGuide(); };
+  // 点遮罩空白处也能关掉说明书(点卡片内部不关)
+  $("guide").onclick = function(ev){
+    if(ev.target === this) closeGuide();
+  };
   $("btnCopyWechat").onclick = function(){
     var btn = this;
     copyText("19925060502", function(ok){
