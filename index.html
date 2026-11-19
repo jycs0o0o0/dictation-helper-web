@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#14161b">
+<meta name="apple-mobile-web-app-title" content="君意-听写助手">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>听写助手</title>
+<title>君意-听写助手</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -148,7 +149,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
 <body>
 <div id="app">
   <header>
-    <span class="logo">听写助手</span>
+    <span class="logo">君意-听写助手</span>
     <div class="tabs">
       <button class="tab on" data-v="dict">听写</button>
       <button class="tab" data-v="input">词表</button>
@@ -240,7 +241,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
 <div id="guide" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:210;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch">
   <div style="max-width:600px;margin:20px auto;background:#171a21;border:1px solid #2a2f3a;border-radius:14px;padding:18px 18px 20px">
     <div style="display:flex;align-items:center;margin-bottom:12px">
-      <b style="color:#f5c518;font-size:18px">使用说明</b>
+      <b style="color:#f5c518;font-size:18px">君意-听写助手 · 使用说明</b>
       <span style="flex:1"></span>
       <button class="btn" id="btnGuideClose" style="padding:7px 14px">知道啦</button>
     </div>
@@ -257,7 +258,13 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
       <div id="promptBox" style="background:#0b0d10;border:1px solid #2a2f3a;border-radius:10px;padding:12px;font-size:13px;line-height:1.7;color:#8fe38f;white-space:pre-wrap;word-break:break-all;margin-bottom:10px">以空格间隔开每个单词或者词语或者句子。以纯文本发给我，不需要任何多余回复。</div>
       <button class="btn primary" id="btnCopyPrompt" style="width:100%;margin-bottom:14px">复制这段提示词</button>
 
-      <p style="margin:0"><b style="color:#fff">复制文本粘贴在词表</b>，即可开始使用。</p>
+      <p style="margin:0 0 16px"><b style="color:#fff">复制文本粘贴在词表</b>，即可开始使用。</p>
+
+      <div style="border-top:1px solid #2a2f3a;padding-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="color:#8a93a6;font-size:13px">联系方式</span>
+        <b style="color:#f5c518;font-size:15px;letter-spacing:.5px">VX 19925060502</b>
+        <button class="btn" id="btnCopyWechat" style="padding:6px 12px;font-size:13px;margin-left:auto">复制微信号</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1704,6 +1711,13 @@ function bind(){
   };
   $("btnPaste").onclick = function(){ pasteFromClipboard(); };
   $("btnGuideClose").onclick = function(){ closeGuide(); };
+  $("btnCopyWechat").onclick = function(){
+    var btn = this;
+    copyText("19925060502", function(ok){
+      btn.textContent = ok ? "已复制 ✓" : "复制失败";
+      setTimeout(function(){ btn.textContent = "复制微信号"; }, 1800);
+    });
+  };
   $("btnCopyPrompt").onclick = function(){
     var btn = this;
     copyText(GUIDE_PROMPT, function(ok){
