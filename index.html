@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#14161b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>听写助手</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#14161b;--panel:#1b1e25;--panel2:#22262f;--card:#262b36;
+  --text:#e8ecf4;--muted:#8a93a6;--dim:#5c6474;
+  --yellow:#f5c518;--yellow2:#d9ad10;--blue:#4ea1ff;
+  --cover:#3b4150;--coveredot:#7b8395;--reveal:#f4f6fa;--revealtext:#16181d;
+  --border:#2c3240;
+}
+html,body{margin:0;padding:0;height:100%;overflow-x:hidden;max-width:100vw;
+  overscroll-behavior:none;overscroll-behavior-y:none}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+  font-size:16px;overflow:hidden;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);flex:none;flex-wrap:wrap}
+.logo{color:var(--yellow);font-weight:700;font-size:19px;letter-spacing:.5px;margin-right:2px}
+.tabs{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+.tab{padding:7px 16px;border-radius:8px;font-size:15px;color:#c9d1e0;border:none;background:transparent;font-family:inherit;cursor:pointer;font-weight:600}
+.tab.on{background:var(--yellow);color:#101216}
+.spacer{flex:1}
+.iconbtn{background:var(--panel2);color:#c9d1e0;border:none;border-radius:8px;padding:8px 12px;font-size:14px;font-family:inherit;cursor:pointer}
+main{flex:1;overflow:hidden;position:relative;overscroll-behavior:none}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.on{display:flex}
+
+/* toolbar */
+.bar{display:flex;gap:8px;padding:10px 12px;background:var(--panel);flex:none;flex-wrap:wrap;align-items:center;overflow-x:hidden}
+.btn{border:none;border-radius:10px;padding:10px 14px;font-size:15px;font-family:inherit;font-weight:600;cursor:pointer;color:var(--text);background:var(--panel2);min-height:44px;flex:0 0 auto;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--yellow);color:#101216}
+.btn.warn{background:#3a4150;color:var(--text)}
+.btn:disabled{opacity:.4}
+.row{display:flex;gap:10px;padding:8px 14px;align-items:center;flex-wrap:wrap;flex:none}
+.info{padding:4px 14px;display:flex;gap:12px;align-items:center;font-size:14px;flex:none;flex-wrap:wrap}
+#progress{font-weight:700;color:#c9d1e0;font-size:15px}
+#status{color:var(--muted);font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* cards */
+#cardwrap{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:none;overscroll-behavior-y:contain}
+#cards{display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start}
+.card{
+  background:var(--card);border:2px solid var(--border);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  padding:14px 8px;min-height:56px;
+  font-size:18px;line-height:1.25;text-align:center;
+  position:relative;cursor:pointer;user-select:none;
+  word-break:break-word;
+  /* 统一尺寸: 每行4个, 不随字数变化 */
+  flex:0 0 calc((100% - 30px) / 4);
+  width:calc((100% - 30px) / 4);
+  box-sizing:border-box;
+  transition:background .12s,border-color .12s;
+}
+.card .num{position:absolute;top:3px;left:7px;font-size:11px;color:var(--dim);font-weight:400}
+.card.covered{background:var(--cover);color:var(--coveredot);letter-spacing:2px;font-size:17px}
+.card.long{font-size:15px}
+.card.xlong{font-size:13px;line-height:1.2}
+.card.revealed{background:var(--reveal);color:var(--revealtext)}
+.card.cur{border-color:var(--yellow);border-width:3px;padding:13px 7px}
+.card.picked{border-color:var(--blue);border-width:3px;padding:13px 7px}
+.card.cur.covered,.card.cur.revealed{border-color:var(--yellow)}
+
+/* input view */
+#txt{flex:1;width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border);
+  border-radius:12px;padding:14px;font-size:16px;font-family:inherit;resize:none;line-height:1.6;
+  margin:0 12px;width:calc(100% - 24px)}
+.opts{display:flex;gap:16px;padding:10px 14px;flex-wrap:wrap;align-items:center;flex:none}
+.opt{display:flex;align-items:center;gap:6px;font-size:14px;color:#c9d1e0;cursor:pointer;user-select:none}
+.opt input{width:18px;height:18px;accent-color:var(--yellow)}
+#countlbl{color:var(--muted);font-size:13px}
+
+/* range */
+input[type=range]{-webkit-appearance:none;height:26px;background:transparent;flex:1;min-width:70px;max-width:160px}
+input[type=range]::-webkit-slider-runnable-track{height:5px;background:var(--panel2);border-radius:3px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--yellow);margin-top:-9px}
+input[type=range]::-moz-range-track{height:5px;background:var(--panel2);border-radius:3px}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-radius:50%;background:var(--yellow)}
+
+/* switch */
+.bar2 .btn.nav{flex:1 1 0;min-width:0}
+.bar3{padding-top:2px;padding-bottom:2px}
+.bar3 input[type=range]{flex:1 1 auto;min-width:60px;max-width:none}
+.bar4{padding-top:0}
+.bar4 .sw{flex:0 0 auto}
+.bar .spacer{flex:1}
+.sel{background:var(--panel2);color:#e8ecf4;border:1px solid var(--border);border-radius:8px;
+  padding:8px 10px;font-size:14px;font-family:inherit;min-height:40px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;padding-right:26px;
+  background-image:linear-gradient(45deg,transparent 50%,#8a93a6 50%),linear-gradient(135deg,#8a93a6 50%,transparent 50%);
+  background-position:calc(100% - 15px) 17px,calc(100% - 10px) 17px;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;flex:0 0 auto}
+.sw{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);cursor:pointer;user-select:none}
+.sw input{display:none}
+.sw i{width:42px;height:24px;background:var(--panel2);border-radius:12px;position:relative;transition:.2s;flex:none}
+.sw i:after{content:"";position:absolute;width:18px;height:18px;background:#8a93a6;border-radius:50%;top:3px;left:3px;transition:.2s}
+.sw input:checked + i{background:var(--yellow)}
+.sw input:checked + i:after{left:21px;background:#fff}
+
+/* log */
+.stats{background:var(--panel);margin:10px 12px 0;padding:12px 14px;border-radius:12px;font-size:14px;color:#c9d1e0;flex:none}
+.logbody{flex:1;display:flex;gap:10px;padding:10px 12px;overflow:hidden}
+.loglist{width:42%;max-width:340px;background:var(--panel);border-radius:12px;overflow-y:auto;padding:6px;flex:none;
+  overscroll-behavior:none;overscroll-behavior-y:contain}
+.logdetail{flex:1;background:var(--panel);border-radius:12px;padding:14px;overflow-y:auto;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:var(--text);
+  overscroll-behavior:none;overscroll-behavior-y:contain}
+.daygrp{color:var(--yellow);font-size:13px;font-weight:700;padding:10px 8px 4px}
+.logitem{padding:10px 8px;border-radius:8px;font-size:14px;color:#c9d1e0;cursor:pointer;display:block;width:100%;text-align:left;background:transparent;border:none;font-family:inherit}
+.logitem:active{background:var(--panel2)}
+.logitem.sel{background:var(--panel2);color:#fff}
+.hintrow{display:flex;gap:8px;padding:0 12px 10px;flex:none;flex-wrap:wrap}
+.empty{color:var(--dim);padding:24px;text-align:center;font-size:14px}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  background:#2c3240;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;
+  transition:.22s;z-index:99;max-width:86vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:480px){
+  .logo{font-size:17px}
+  .tab{padding:7px 12px;font-size:14px}
+  .btn{padding:10px 13px;font-size:14px}
+  .card{font-size:18px;padding:14px 15px}
+  .btn{padding:9px 11px;font-size:14px}
+  .logbody{flex-direction:column}
+  .loglist{width:100%;max-width:none;max-height:38%}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="logo">听写助手</span>
+    <div class="tabs">
+      <button class="tab on" data-v="dict">听写</button>
+      <button class="tab" data-v="input">词表</button>
+      <button class="tab" data-v="log">日志</button>
+    </div>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="btnTry">试听</button>
+    <button class="iconbtn" id="btnDiag" title="语音诊断">?</button>
+  </header>
+
+  <main>
+    <!-- 听写 -->
+    <section class="view on" id="v-dict">
+      <div class="bar bar1">
+        <button class="btn primary" id="btnStart">开始听写</button>
+        <button class="btn warn" id="btnStop">结束</button>
+        <button class="btn" id="btnHint">看提示3秒</button>
+        <button class="btn" id="btnAgain">再读一次</button>
+      </div>
+      <div class="bar bar2">
+        <button class="btn nav" id="btnPrev">↑ 上一个</button>
+        <button class="btn nav" id="btnNext">↓ 下一个</button>
+      </div>
+      <div class="bar bar3">
+        <span style="font-size:13px;color:var(--muted);flex:none">语速</span>
+        <input type="range" id="rate" min="60" max="170" step="5" value="100">
+        <span id="rateVal" style="font-size:13px;color:var(--muted);min-width:30px;flex:none">100</span>
+      </div>
+      <div class="bar bar4">
+        <label class="sw"><input type="checkbox" id="autoNext"><i></i>自动下一个</label>
+        <select id="autoDelay" class="sel">
+          <option value="1">间隔 1 秒</option>
+          <option value="3" selected>间隔 3 秒</option>
+          <option value="6">间隔 6 秒</option>
+          <option value="9">间隔 9 秒</option>
+        </select>
+        <label class="sw"><input type="checkbox" id="hintSound" checked><i></i>提示音</label>
+      </div>
+      <div class="info">
+        <span id="progress">第 0 / 0 个</span>
+        <span id="status">到「词表」粘贴文本，生成卡片后点开始听写</span>
+      </div>
+      <div id="cardwrap"><div id="cards"></div></div>
+    </section>
+
+    <!-- 词表 -->
+    <section class="view" id="v-input">
+      <div class="row"><span style="font-size:14px;color:#c9d1e0">粘贴文本，默认按空格/换行切词；中文词之间也要留空格</span></div>
+      <textarea id="txt" placeholder="例如：苹果 香蕉 老师 班干部 计算机 homework beautiful"></textarea>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="optDedupe">去重</label>
+        <label class="opt"><input type="checkbox" id="optPunct">按标点也切分</label>
+        <label class="opt"><input type="checkbox" id="optShuffle">随机顺序</label>
+        <span id="countlbl"></span>
+      </div>
+      <div class="row" style="justify-content:flex-end;padding-bottom:14px">
+        <button class="btn" id="btnClear">清空</button>
+        <button class="btn primary" id="btnGen">生成卡片</button>
+      </div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="view" id="v-log">
+      <div class="stats" id="stats">累计 0 次听写</div>
+      <div class="hintrow">
+        <button class="btn primary" id="btnImportList">导入词表</button>
+        <input type="file" id="fileIn" accept=".txt,.csv,.json,text/plain" style="display:none">
+        <button class="btn" id="btnDel" style="margin-left:auto">删除这条</button>
+      </div>
+      <div class="logbody">
+        <div class="loglist" id="loglist"></div>
+        <div class="logdetail" id="logdetail">选一条记录查看</div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="diag" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch">
+  <div style="max-width:640px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <b style="color:#f5c518;font-size:17px">语音诊断</b>
+      <span style="flex:1"></span>
+      <button class="btn" id="btnDiagTest" style="padding:8px 14px">测试发声</button>
+      <button class="btn" id="btnDiagClose" style="padding:8px 14px">关闭</button>
+    </div>
+    <pre id="diagOut" style="background:#0b0d10;color:#8fe38f;font-size:12px;line-height:1.7;padding:12px;border-radius:10px;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+var KEY_LOG = "dict_sessions_v1";
+var KEY_SET = "dict_settings_v1";
+
+var S = {
+  rate: 100, autoNext: false, hintSound: true, autoDelay: 3,
+  dedupe: false, punct: false, shuffle: false, lastText: ""
+};
+
+var cards = [];       // {text, covered, cur, picked, revealedUntil}
+var words = [];
+var running = false;
+var current = -1;
+var startIndex = 0;
+var picked = false;
+var visited = {};
+var hintCount = 0;
+var hintWords = [];
+var sessionId = null;
+var recordStart = null;
+var revealTimer = null;
+var autoTimer = null;
+
+/* ---------- 存储 ---------- */
+function loadSet(){
+  try{
+    var raw = localStorage.getItem(KEY_SET);
+    if(raw){ var o = JSON.parse(raw); for(var k in S){ if(o[k]!==undefined) S[k]=o[k]; } }
+  }catch(e){}
+}
+function saveSet(){
+  try{ localStorage.setItem(KEY_SET, JSON.stringify(S)); }catch(e){}
+}
+function loadLogs(){
+  try{
+    var raw = localStorage.getItem(KEY_LOG);
+    if(raw){ var a = JSON.parse(raw); if(Array.isArray(a)) return a; }
+  }catch(e){}
+  return [];
+}
+function saveLogs(arr){
+  try{ localStorage.setItem(KEY_LOG, JSON.stringify(arr)); }catch(e){ toast("保存失败：存储空间不足"); }
+}
+
+/* ---------- 工具 ---------- */
+function $(id){ return document.getElementById(id); }
+function toast(msg){
+  var t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("on"); }, 1800);
+}
+function hasCJK(s){ return /[\u3400-\u9fff\uf900-\ufaff]/.test(s); }
+function fmtDate(d){
+  var p=function(n){return (n<10?"0":"")+n;};
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function fmtTime(d){
+  var p=function(n){return (n<10?"0":"")+n;};
+  return p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+}
+
+/* ---------- 语音 ---------- */
+var voices = [];
+var zhVoice = null, enVoice = null;
+var speaking = false;
+var curUtter = null;          // 必须保留引用, 否则安卓 Chrome 会回收导致静音
+var speechBroken = false;     // 检测到彻底不可用
+var isAndroid = /android/i.test(navigator.userAgent || "");
+var spDiag = { tries:0, started:0, errors:[], lastError:"", voiceCount:0 };
+
+function refreshVoices(){
+  if(!window.speechSynthesis) return;
+  try{ voices = window.speechSynthesis.getVoices() || []; }catch(e){ voices = []; }
+  spDiag.voiceCount = voices.length;
+  // 优先本地引擎: 手机上云端语音发不出声
+  function pick(pref){
+    var best = null;
+    for(var i=0;i<voices.length;i++){
+      var v = voices[i], lg = (v.lang||"").toLowerCase();
+      if(!pref(lg)) continue;
+      if(v.localService !== false){ return v; }   // 本地优先, 直接返回
+      if(!best) best = v;                          // 退而求其次用云端
+    }
+    return best;
+  }
+  zhVoice = pick(function(lg){ return lg.indexOf("zh")===0 || lg.indexOf("cmn")===0; });
+  enVoice = pick(function(lg){ return lg.indexOf("en")===0; });
+}
+function hasSpeech(){
+  return !!(window.speechSynthesis && typeof SpeechSynthesisUtterance === "function");
+}
+if(hasSpeech()){
+  refreshVoices();
+  try{ window.speechSynthesis.onvoiceschanged = refreshVoices; }catch(e){}
+  setTimeout(refreshVoices, 300);
+  setTimeout(refreshVoices, 1000);
+  setTimeout(refreshVoices, 2500);
+}
+
+function pickVoice(text){
+  var want = hasCJK(text) ? zhVoice : enVoice;
+  if(want) return want;
+  return zhVoice || enVoice || null;
+}
+
+/* 核心朗读: 带看门狗重试, 解决安卓"静默不发声" */
+function doSpeak(text, onEnd){
+  if(!text){ if(onEnd) onEnd(); return false; }
+  if(!hasSpeech()){
+    speechBroken = true;
+    if(onEnd) onEnd();
+    return false;
+  }
+  spDiag.tries++;
+  try{ window.speechSynthesis.cancel(); }catch(e){}
+  try{ if(window.speechSynthesis.paused) window.speechSynthesis.resume(); }catch(e){}
+
+  var lang = hasCJK(text) ? "zh-CN" : "en-US";
+  var v = pickVoice(text);
+
+  function build(useVoice){
+    var u;
+    try{ u = new SpeechSynthesisUtterance(text); }
+    catch(e){ return null; }
+    // 安卓上指定 voice 对象有时会静默失败: 用看门狗切换 A(带voice)/B(仅lang)
+    if(useVoice && v){
+      try{ u.voice = v; }catch(e){}
+      u.lang = v.lang || lang;
+    } else {
+      u.lang = lang;
+    }
+    u.rate = Math.max(0.5, Math.min(2, S.rate/100));
+    u.pitch = 1;
+    u.volume = 1;
+    return u;
+  }
+
+  var done = false;
+  var started = false;
+  var finished = false;
+
+  function finish(){
+    if(finished) return;
+    finished = true;
+    speaking = false;
+    if(onEnd) onEnd();
+  }
+
+  function attempt(useVoice, tag){
+    var u = build(useVoice);
+    if(!u){ finish(); return; }
+    curUtter = u;            // 防回收
+    started = false;
+    done = false;
+
+    u.onstart = function(){
+      started = true;
+      spDiag.started++;
+      speaking = true;
+    };
+    u.onend = function(){
+      done = true;
+      finish();
+    };
+    u.onerror = function(ev){
+      var msg = (ev && (ev.error || ev.type)) || "unknown";
+      spDiag.errors.push(tag + ":" + msg);
+      spDiag.lastError = msg;
+      done = true;
+      // interrupted/canceled 是正常打断, 不算失败
+      if(msg === "interrupted" || msg === "canceled"){ finish(); return; }
+      finish();
+    };
+
+    try{
+      speaking = true;
+      window.speechSynthesis.speak(u);
+    }catch(e){
+      spDiag.errors.push(tag + ":throw " + (e && e.message));
+    }
+
+    // 看门狗: 1.2 秒内没开始就换策略重试
+    setTimeout(function(){
+      if(finished) return;
+      if(started || done){ return; }
+      if(tag === "A"){
+        // 换 lang-only 再来一次
+        try{ window.speechSynthesis.cancel(); }catch(e){}
+        try{ if(window.speechSynthesis.paused) window.speechSynthesis.resume(); }catch(e){}
+        attempt(false, "B");
+      } else if(tag === "B"){
+        // 再等一轮, 某些机型起音慢
+        setTimeout(function(){
+          if(finished) return;
+          if(started || done){ return; }
+          spDiag.errors.push("C:no-start");
+          speechBroken = true;
+          finish();
+        }, 1600);
+      }
+    }, 1200);
+  }
+
+  attempt(!isAndroid, "A");
+  return true;
+}
+
+/* 用户手势里预热一次, 解除安卓浏览器的自动播放限制 */
+function unlockSpeech(){
+  if(!hasSpeech()) return;
+  try{
+    var u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    u.lang = "zh-CN";
+    curUtter = u;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ---------- 提示音 (Web Audio) ---------- */
+var actx = null;
+function ensureAudio(){
+  try{
+    if(!actx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) actx = new AC();
+    }
+    if(actx && actx.state === "suspended") actx.resume();
+  }catch(e){}
+}
+function beep(freq, dur, when, vol){
+  if(!actx) return;
+  try{
+    var t0 = actx.currentTime + (when||0);
+    var v = (vol === undefined) ? 1.0 : vol;
+
+    // 双振荡器叠加, 声音更厚更响
+    var o1 = actx.createOscillator();
+    var o2 = actx.createOscillator();
+    o1.type = "square"; o1.frequency.value = freq;
+    o2.type = "sine";   o2.frequency.value = freq * 2;
+
+    var g = actx.createGain();
+    // 起音 8ms 到满, 保持后衰减, 峰值 1.0
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(v, t0 + 0.008);
+    g.gain.setValueAtTime(v, t0 + Math.max(0.02, dur * 0.55));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    // 限幅器: 阈值放到 -1dB, 只挡削波不压音量
+    var comp = actx.createDynamicsCompressor();
+    comp.threshold.value = -1;
+    comp.knee.value = 1;
+    comp.ratio.value = 20;
+    comp.attack.value = 0.001;
+    comp.release.value = 0.05;
+
+    var gmix = actx.createGain(); gmix.gain.value = 0.63;
+    o1.connect(g); o2.connect(g); g.connect(comp); comp.connect(gmix);
+    gmix.connect(actx.destination);
+
+    o1.start(t0); o2.start(t0);
+    o1.stop(t0 + dur + 0.02); o2.stop(t0 + dur + 0.02);
+  }catch(e){}
+}
+function playHint(){
+  if(!S.hintSound) return;
+  ensureAudio();
+  if(!actx) return;
+  // 三连提示音, 音量拉满
+  beep(1046, 0.16, 0.00, 1.0);
+  beep(1319, 0.18, 0.13, 1.0);
+  beep(1568, 0.22, 0.28, 1.0);
+}
+
+/* ---------- 渲染卡片 ---------- */
+function renderCards(){
+  var box = $("cards");
+  box.innerHTML = "";
+  var frag = document.createDocumentFragment();
+  for(var i=0;i<cards.length;i++){
+    var c = cards[i];
+    var d = document.createElement("div");
+    d.className = "card";
+    d.dataset.i = i;
+    var n = document.createElement("span");
+    n.className = "num"; n.textContent = (i+1);
+    var t = document.createElement("span");
+    t.className = "txt";
+    d.appendChild(n); d.appendChild(t);
+    frag.appendChild(d);
+    c.el = d; c.txtEl = t;
+    paintCard(c);
+  }
+  box.appendChild(frag);
+}
+function paintCard(c){
+  if(!c.el) return;
+  var d = c.el;
+  d.classList.remove("covered","revealed","cur","picked");
+  d.classList.remove("long","xlong");
+  if(c.covered){
+    d.classList.add("covered");
+    c.txtEl.textContent = coverDots(c.text);
+  }
+  else {
+    c.txtEl.textContent = c.text;
+    var L = String(c.text).length;
+    if(L >= 9) d.classList.add("xlong");
+    else if(L >= 6) d.classList.add("long");
+  }
+  if(c.revealed) d.classList.add("revealed");
+  if(i_is_cur(c)) d.classList.add("cur");
+  if(c.picked) d.classList.add("picked");
+}
+function coverDots(text){
+  var n = String(text || "").length;
+  if(n <= 2) return "••";
+  if(n === 3) return "•••";
+  return "••••";
+}
+function i_is_cur(c){ return cards[current] === c; }
+
+function updateProgress(){
+  var n = cards.length;
+  if(!n){ $("progress").textContent = "第 0 / 0 个"; return; }
+  if(current >= 0){ $("progress").textContent = "第 " + (current+1) + " / " + n + " 个"; }
+  else if(picked && startIndex >= 0){ $("progress").textContent = "从第 " + (startIndex+1) + " / " + n + " 个开始"; }
+  else { $("progress").textContent = "第 0 / " + n + " 个"; }
+}
+function setStatus(s){ $("status").textContent = s; }
+
+/* ---------- 解析词 ---------- */
+function parseWords(text, punct, dedupe){
+  var parts;
+  if(punct){ parts = text.split(/[\s,，、;；。.!！?？:：\/|]+/); }
+  else { parts = text.split(/\s+/); }
+  var out = [];
+  for(var i=0;i<parts.length;i++){
+    var w = parts[i].trim();
+    if(w) out.push(w);
+  }
+  if(dedupe){
+    var seen = {}, u = [];
+    for(var j=0;j<out.length;j++){ if(!seen[out[j]]){ seen[out[j]]=1; u.push(out[j]); } }
+    out = u;
+  }
+  return out;
+}
+
+/* ---------- 建立卡片 ---------- */
+function loadWords(list){
+  stopDict(true, true);
+  words = list.slice();
+  cards = [];
+  for(var i=0;i<words.length;i++){
+    cards.push({ text: words[i], covered:false, revealed:false, picked:false, el:null, txtEl:null });
+  }
+  current = -1; visited = {}; startIndex = 0; picked = false;
+  sessionId = null; recordStart = null; hintCount = 0; hintWords = [];
+  renderCards();
+  updateProgress();
+  if(cards.length) recordNow("pending");
+}
+
+/* ---------- 记录 ---------- */
+function recordNow(status){
+  if(!cards.length) return;
+  var now = new Date();
+  if(!sessionId){
+    sessionId = "s" + now.getTime() + Math.floor(Math.random()*1000);
+  }
+  if(!recordStart){ recordStart = now; }
+  var vw = [];
+  var keys = Object.keys(visited).map(Number).sort(function(a,b){return a-b;});
+  for(var i=0;i<keys.length;i++){ if(cards[keys[i]]) vw.push(cards[keys[i]].text); }
+  var all = [];
+  for(var j=0;j<cards.length;j++) all.push(cards[j].text);
+
+  var rec = {
+    id: sessionId,
+    date: fmtDate(recordStart),
+    start: fmtDate(recordStart) + "T" + fmtTime(recordStart),
+    end: fmtDate(now) + "T" + fmtTime(now),
+    total: cards.length,
+    visited: keys.length,
+    words: vw,
+    all_words: all,
+    hints: hintCount,
+    hint_words: hintWords.slice(),
+    status: status
+  };
+  var logs = loadLogs();
+  var out = [];
+  for(var k=0;k<logs.length;k++){ if(logs[k].id !== rec.id) out.push(logs[k]); }
+  out.push(rec);
+  saveLogs(out);
+  renderLogs();
+}
+
+/* ---------- 听写流程 ---------- */
+function startDict(){
+  if(!cards.length){
+    if(words.length){ loadWords(words); }
+    else {
+      toast("还没有卡片，先到「词表」粘贴文本");
+      switchView("input");
+      return;
+    }
+  }
+  ensureAudio();
+  // 先记住用户选的位置, 否则 stopDict 会把它清掉
+  var want = picked ? startIndex : 0;
+  stopDict(true, true);
+  picked = false; startIndex = 0;
+
+  if(S.shuffle && cards.length > 1){
+    var arr = [];
+    for(var i=0;i<cards.length;i++) arr.push(cards[i].text);
+    for(var j=arr.length-1;j>0;j--){
+      var k = Math.floor(Math.random()*(j+1)); var tmp=arr[j]; arr[j]=arr[k]; arr[k]=tmp;
+    }
+    loadWords(arr);
+  }
+
+  for(var m=0;m<cards.length;m++){
+    cards[m].covered = true;
+    cards[m].revealed = false;
+    cards[m].picked = false;
+    paintCard(cards[m]);
+  }
+  running = true;
+  visited = {};
+  hintCount = 0; hintWords = [];
+  current = -1;
+  setStatus("听写进行中...");
+  goto(want);
+  recordNow("running");
+}
+
+function stopDict(silent, keepRecord){
+  if(window.speechSynthesis){ try{ window.speechSynthesis.cancel(); }catch(e){} }
+  speaking = false;
+  if(autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  if(revealTimer){ clearTimeout(revealTimer); revealTimer = null; }
+  var was = running;
+  running = false;
+  for(var i=0;i<cards.length;i++){
+    cards[i].covered = false;
+    cards[i].revealed = false;
+    cards[i].picked = false;
+    paintCard(cards[i]);
+  }
+  if(current >= 0){ current = -1; }
+  picked = false; startIndex = 0;
+  updateProgress();
+  if(was && !silent && !keepRecord){ recordNow("done"); setStatus("听写已结束，记录已保存"); }
+  return was;
+}
+
+function goto(idx){
+  if(!cards.length) return;
+  if(idx < 0) idx = 0;
+  if(idx >= cards.length){
+    setStatus("已经是最后一个，听写结束");
+    stopDict(false);
+    return;
+  }
+  var oldIdx = current;
+  current = idx;
+  if(oldIdx >= 0 && oldIdx !== idx && cards[oldIdx]){
+    cards[oldIdx].covered = true;
+    cards[oldIdx].revealed = false;
+    paintCard(cards[oldIdx]);
+  }
+  visited[idx] = true;
+  var c = cards[idx];
+  c.covered = true;
+  c.revealed = false;
+  c.picked = false;
+  paintCard(c);
+  updateProgress();
+  scrollToCard(c);
+  speakCurrent();
+  recordNow("running");
+}
+
+function scrollToCard(c){
+  if(!c.el) return;
+  try{ c.el.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(e){}
+}
+
+function speakCurrent(){
+  if(current < 0 || current >= cards.length) return;
+  var text = cards[current].text;
+  if(autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  var ok = doSpeak(text, function(){
+    if(running && S.autoNext && current < cards.length-1){
+      var wait = Math.max(1, Math.min(9, parseInt(S.autoDelay,10) || 3)) * 1000;
+      setStatus("读完，等 " + (wait/1000) + " 秒后自动下一个…");
+      autoTimer = setTimeout(function(){
+        autoTimer = null;
+        if(running && S.autoNext) nextCard();
+      }, wait);
+    }
+  });
+  if(!ok){
+    setStatus("语音不可用，点右上角 ? 查看诊断");
+  } else if(speechBroken){
+    setStatus("语音没发出来，点右上角 ? 查看诊断并换 Chrome");
+  }
+}
+
+function nextCard(){
+  if(!cards.length) return;
+  if(!running){ setStatus("先点开始听写"); return; }
+  if(current >= cards.length-1){ stopDict(false); return; }
+  goto(current+1);
+}
+function prevCard(){
+  if(!cards.length) return;
+  if(!running){ setStatus("先点开始听写"); return; }
+  if(current <= 0){ setStatus("已经是第一个"); return; }
+  goto(current-1);
+}
+function repeatCurrent(){
+  if(current >= 0 && current < cards.length){
+    speakCurrent();
+    setStatus("再读一次（第 " + (current+1) + " 个）");
+  } else if(cards.length){ setStatus("先点开始听写"); }
+}
+
+/* 看提示: 唯一允许在听写中打开卡片的入口 */
+function revealCurrent(){
+  if(!running){ setStatus("先点开始听写"); return; }
+  if(current < 0 || current >= cards.length) return;
+  ensureAudio();
+  var c = cards[current];
+  if(!c || !c.el) return;
+
+  if(revealTimer){ clearTimeout(revealTimer); revealTimer = null; }
+
+  c.covered = false;
+  c.revealed = true;
+  paintCard(c);
+  playHint();
+
+  hintCount++;
+  hintWords.push(c.text);
+  setStatus("看提示（本次第 " + hintCount + " 次），3 秒后自动遮挡");
+  recordNow("running");
+
+  revealTimer = setTimeout(function(){
+    revealTimer = null;
+    c.covered = true;
+    c.revealed = false;
+    paintCard(c);
+    if(running) setStatus("听写进行中...");
+  }, 3000);
+}
+
+function onCardTap(idx){
+  var c = cards[idx];
+  if(!c) return;
+  if(running){
+    // 听写中点击卡片只做切换, 绝不打开内容
+    // (否则遮挡就失去意义, 只有"看提示"按钮可以打开)
+    if(idx === current){ return; }
+    ensureAudio();
+    goto(idx);
+    return;
+  }
+  // 未开始：选择起始卡
+  for(var i=0;i<cards.length;i++){ cards[i].picked = false; paintCard(cards[i]); }
+  c.picked = true;
+  paintCard(c);
+  startIndex = idx;
+  picked = true;
+  setStatus("已选择从第 " + (idx+1) + " 个开始，点开始听写");
+  updateProgress();
+}
+
+/* ---------- 日志界面 ---------- */
+var selSession = null;
+
+function renderLogs(){
+  var logs = loadLogs();
+  var totalTimes = logs.length, totalWords = 0, todayWords = 0, totalHints = 0;
+  var today = fmtDate(new Date());
+  for(var i=0;i<logs.length;i++){
+    var w = parseInt(logs[i].visited||0, 10);
+    totalWords += w;
+    totalHints += parseInt(logs[i].hints||0, 10);
+    if(logs[i].date === today) todayWords += w;
+  }
+  $("stats").textContent = "累计 " + totalTimes + " 次听写 · " + totalWords + " 个词 · 今日 " +
+    todayWords + " 个词" + (totalHints ? (" · 看提示 " + totalHints + " 次") : "");
+
+  var box = $("loglist");
+  box.innerHTML = "";
+  if(!logs.length){
+    box.innerHTML = '<div class="empty">还没有听写记录</div>';
+    return;
+  }
+  var sorted = logs.slice().sort(function(a,b){
+    return String(b.start||"").localeCompare(String(a.start||""));
+  });
+  var groups = {}, order = [];
+  for(var j=0;j<sorted.length;j++){
+    var d = sorted[j].date || "未知";
+    if(!groups[d]){ groups[d] = []; order.push(d); }
+    groups[d].push(sorted[j]);
+  }
+  for(var k=0;k<order.length;k++){
+    var date = order[k], items = groups[date];
+    var dw = 0, dh = 0;
+    for(var m=0;m<items.length;m++){ dw += parseInt(items[m].visited||0,10); dh += parseInt(items[m].hints||0,10); }
+    var hd = document.createElement("div");
+    hd.className = "daygrp";
+    hd.textContent = date + "　" + items.length + " 次 / " + dw + " 词" + (dh ? (" / 提示 " + dh) : "");
+    box.appendChild(hd);
+    for(var n=0;n<items.length;n++){
+      var s = items[n];
+      var b = document.createElement("button");
+      b.className = "logitem" + (selSession && selSession.id === s.id ? " sel" : "");
+      var tm = String(s.start||"").split("T")[1] || "";
+      var label = tm + "　" + (s.visited||0) + "/" + (s.total||0) + " 词";
+      if(s.hints) label += " · 看提示 " + s.hints;
+      b.textContent = label;
+      b.onclick = (function(ss){ return function(){ selSession = ss; renderLogs(); showDetail(ss); }; })(s);
+      box.appendChild(b);
+    }
+  }
+}
+
+function showDetail(s){
+  var lines = [];
+  lines.push("日期：" + (s.date||""));
+  lines.push("开始：" + String(s.start||"").replace("T"," "));
+  lines.push("结束：" + String(s.end||"").replace("T"," "));
+  lines.push("本次读了 " + (s.visited||0) + " / " + (s.total||0) + " 个");
+  if(s.hints){
+    lines.push("看提示 " + s.hints + " 次：" + (s.hint_words||[]).join("  "));
+  }
+  lines.push("");
+  lines.push("本次听写过的词：");
+  lines.push("  " + ((s.words||[]).join("  ") || "（无）"));
+  lines.push("");
+  lines.push("完整词表：");
+  lines.push("  " + (s.all_words||[]).join("  "));
+  $("logdetail").textContent = lines.join("\n");
+}
+
+/* ---------- 导入词表 ---------- */
+/* 支持 .txt / .csv / .json (含本程序导出的日志), 解析出词并生成卡片 */
+function importWordList(file){
+  var fr = new FileReader();
+  fr.onload = function(){
+    try{
+      var list = extractWords(String(fr.result || ""));
+      if(!list.length){ toast("文件里没读到词，请检查内容"); return; }
+      $("txt").value = list.join(" ");
+      S.lastText = $("txt").value;
+      saveSet();
+      updateCount();
+      loadWords(list);
+      switchView("dict");
+      setStatus("已从文件导入 " + list.length + " 个词");
+      toast("导入成功，共 " + list.length + " 个词");
+    }catch(e){ toast("导入失败：" + e.message); }
+  };
+  fr.onerror = function(){ toast("读取文件失败"); };
+  fr.readAsText(file, "utf-8");
+}
+
+function extractWords(raw){
+  var t = String(raw || "").replace(/^\uFEFF/, "").trim();
+  if(!t) return [];
+
+  if(t.charAt(0) === "[" || t.charAt(0) === "{"){
+    try{
+      var o = JSON.parse(t);
+      var out = [];
+      if(Array.isArray(o)){
+        for(var i=0;i<o.length;i++){
+          var it = o[i];
+          if(typeof it === "string"){ out.push(it); }
+          else if(it && typeof it === "object"){
+            if(Array.isArray(it.words) && it.words.length){ out = out.concat(it.words); }
+            else if(Array.isArray(it.all_words)){ out = out.concat(it.all_words); }
+          }
+        }
+      } else if(o && Array.isArray(o.all_words)){
+        out = o.all_words.slice();
+      }
+      if(out.length){
+        var clean = [];
+        for(var k=0;k<out.length;k++){
+          var w = String(out[k]).trim();
+          if(w) clean.push(w);
+        }
+        if(clean.length) return clean;
+      }
+    }catch(e){}
+  }
+
+  var lines = t.split(/\r?\n/);
+  if(lines.length && lines[0].indexOf(",") >= 0) return parseCsv(lines);
+  return parseWords(t, true, false);
+}
+
+function parseCsv(lines){
+  var out = [];
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(!line || !line.trim()) continue;
+    if(i === 0 && /日期|date/i.test(line)) continue;
+    var cells = splitCsvLine(line);
+    if(!cells.length) continue;
+    // 词表固定是最后一列(本程序导出的CSV格式), 优先取它
+    var best = "";
+    var last = cells.length ? cells[cells.length-1].replace(/^"|"$/g, "").trim() : "";
+    if(last && last.split(/\s+/).length > 1){
+      best = last;
+    } else {
+      // 兼容其它CSV: 取含多个空格分隔词的那一列
+      for(var c=0;c<cells.length;c++){
+        var v = cells[c].replace(/^"|"$/g, "").trim();
+        if(v.split(/\s+/).length > 1){ best = v; break; }
+      }
+      if(!best){
+        // 再退回最长列
+        for(var c2=0;c2<cells.length;c2++){
+          var v2 = cells[c2].replace(/^"|"$/g, "").trim();
+          if(v2.length > best.length) best = v2;
+        }
+      }
+    }
+    if(!best) continue;
+    var parts = best.split(/\s+/);
+    for(var d=0;d<parts.length;d++){
+      var w = parts[d].trim();
+      if(w) out.push(w);
+    }
+  }
+  return out;
+}
+
+function splitCsvLine(line){
+  var cells = [], cur = "", inQ = false;
+  for(var i=0;i<line.length;i++){
+    var ch = line.charAt(i);
+    if(inQ){
+      if(ch === '"'){
+        if(line.charAt(i+1) === '"'){ cur += '"'; i++; }
+        else { inQ = false; }
+      } else { cur += ch; }
+    } else {
+      if(ch === '"'){ inQ = true; }
+      else if(ch === ","){ cells.push(cur); cur = ""; }
+      else { cur += ch; }
+    }
+  }
+  cells.push(cur);
+  return cells;
+}
+
+/* ---------- 视图切换 ---------- */
+function switchView(name){
+  var tabs = document.querySelectorAll(".tab");
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].classList.toggle("on", tabs[i].dataset.v === name);
+  }
+  var vs = document.querySelectorAll(".view");
+  for(var j=0;j<vs.length;j++){ vs[j].classList.remove("on"); }
+  var el = $("v-" + name);
+  if(el) el.classList.add("on");
+  if(name === "log") renderLogs();
+  if(name === "input") updateCount();
+}
+
+/* ---------- 文本变更 ---------- */
+function updateCount(){
+  var ws = parseWords($("txt").value, $("optPunct").checked, $("optDedupe").checked);
+  $("countlbl").textContent = "解析到 " + ws.length + " 个词";
+}
+
+/* ---------- 事件绑定 ---------- */
+function bind(){
+  var tabs = document.querySelectorAll(".tab");
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].onclick = (function(t){ return function(){ switchView(t.dataset.v); }; })(tabs[i]);
+  }
+
+  $("btnStart").onclick = function(){ ensureAudio(); startDict(); };
+  $("btnStop").onclick = function(){ stopDict(false); };
+  $("btnPrev").onclick = prevCard;
+  $("btnNext").onclick = nextCard;
+  $("btnAgain").onclick = repeatCurrent;
+  $("btnHint").onclick = function(){ revealCurrent(); };
+  $("btnDiag").onclick = function(){ showDiag(); };
+  $("btnDiagClose").onclick = function(){ $("diag").style.display = "none"; };
+  $("btnDiagTest").onclick = function(){
+    ensureAudio();
+    unlockSpeech();
+    doSpeak("测试发声，一二三四五", function(){
+      setTimeout(renderDiag, 400);
+    });
+    setTimeout(renderDiag, 1200);
+  };
+
+  $("btnTry").onclick = function(){
+    ensureAudio();
+    var t = (current >= 0 && cards[current]) ? cards[current].text : "苹果 计算机 homework";
+    setStatus(running ? "试听当前词" : ("试听：" + t));
+    doSpeak(t);
+  };
+
+  $("rate").oninput = function(){
+    S.rate = parseInt(this.value, 10) || 100;
+    $("rateVal").textContent = S.rate;
+    saveSet();
+  };
+  $("autoNext").onchange = function(){ S.autoNext = this.checked; saveSet(); };
+  $("autoDelay").onchange = function(){
+    S.autoDelay = parseInt(this.value, 10) || 3;
+    saveSet();
+    if(S.autoNext) toast("间隔设为 " + S.autoDelay + " 秒");
+  };
+  $("hintSound").onchange = function(){
+    S.hintSound = this.checked; saveSet();
+    if(this.checked) playHint();
+  };
+
+  $("optDedupe").onchange = function(){ S.dedupe = this.checked; saveSet(); updateCount(); };
+  $("optPunct").onchange = function(){ S.punct = this.checked; saveSet(); updateCount(); };
+  $("optShuffle").onchange = function(){ S.shuffle = this.checked; saveSet(); };
+  $("txt").oninput = function(){
+    S.lastText = this.value;
+    clearTimeout(window._sv);
+    window._sv = setTimeout(saveSet, 500);
+    updateCount();
+  };
+  $("btnClear").onclick = function(){ $("txt").value = ""; S.lastText = ""; saveSet(); updateCount(); };
+  $("btnGen").onclick = function(){
+    var ws = parseWords($("txt").value, $("optPunct").checked, $("optDedupe").checked);
+    if(!ws.length){ toast("没有解析到词，请先粘贴文本"); return; }
+    loadWords(ws);
+    switchView("dict");
+    setStatus("已生成 " + ws.length + " 张卡片，点开始听写");
+  };
+
+  $("btnImportList").onclick = function(){ $("fileIn").click(); };
+  $("fileIn").onchange = function(){
+    if(this.files && this.files[0]) importWordList(this.files[0]);
+    this.value = "";
+  };
+  $("btnDel").onclick = function(){
+    if(!selSession){ toast("先选一条记录"); return; }
+    if(!confirm("删除这条听写记录？")) return;
+    var logs = loadLogs().filter(function(x){ return x.id !== selSession.id; });
+    saveLogs(logs);
+    selSession = null;
+    $("logdetail").textContent = "选一条记录查看";
+    renderLogs();
+    toast("已删除");
+  };
+
+  // 卡片点击（事件委托）
+  $("cards").addEventListener("click", function(e){
+    var t = e.target;
+    while(t && t !== this && !t.classList.contains("card")) t = t.parentNode;
+    if(t && t !== this && t.classList.contains("card")){
+      onCardTap(parseInt(t.dataset.i, 10));
+    }
+  });
+
+  // 键盘（桌面调试用）
+  document.addEventListener("keydown", function(e){
+    if(e.target && (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT")) return;
+    if(!$("v-dict").classList.contains("on")) return;
+    if(e.key === "ArrowDown"){ e.preventDefault(); nextCard(); }
+    else if(e.key === "ArrowUp"){ e.preventDefault(); prevCard(); }
+    else if(e.key === " "){ e.preventDefault(); repeatCurrent(); }
+    else if(e.key === "Escape"){ stopDict(false); }
+  });
+
+  // 首次触摸解锁音频 + 预热语音(必须在用户手势内)
+  document.addEventListener("touchstart", function(){ ensureAudio(); unlockSpeech(); }, {once:true});
+  document.addEventListener("click", function(){ ensureAudio(); unlockSpeech(); }, {once:true});
+
+  // 防止双击缩放
+  document.addEventListener("dblclick", function(e){ e.preventDefault(); }, {passive:false});
+
+  // 防止下拉刷新: 页面整体已滚到顶部还在往下拉时, 拦截默认行为
+  // (安卓 Chrome / 微信 / 小米浏览器都会因此刷新页面, 导致卡片丢失)
+  var __touchY = 0, __pulling = false;
+  document.addEventListener("touchstart", function(e){
+    if(!e.touches || !e.touches.length) return;
+    __touchY = e.touches[0].clientY;
+    __pulling = false;
+  }, {passive:true});
+
+  document.addEventListener("touchmove", function(e){
+    if(!e.touches || !e.touches.length) return;
+    var dy = e.touches[0].clientY - __touchY;
+    if(dy <= 0){ __pulling = false; return; }   // 往上滑, 正常
+
+    // 找到当前触点所在的滚动容器
+    var el = e.target;
+    var scroller = null;
+    while(el && el !== document.body && el !== document.documentElement){
+      var st = getComputedStyle(el);
+      if((st.overflowY === "auto" || st.overflowY === "scroll") && el.scrollHeight > el.clientHeight){
+        scroller = el; break;
+      }
+      el = el.parentNode;
+    }
+    if(scroller){
+      // 容器还能往上滚就不要拦
+      if(scroller.scrollTop > 0){ __pulling = false; return; }
+    }
+    // 已经在顶部还继续下拉 -> 拦截, 防止触发刷新
+    if(window.pageYOffset <= 0 && scroller === null){
+      if(e.cancelable) e.preventDefault();
+      __pulling = true;
+    } else if(scroller && scroller.scrollTop <= 0){
+      if(e.cancelable) e.preventDefault();
+    }
+  }, {passive:false});
+}
+
+/* ---------- 语音诊断 ---------- */
+function showDiag(){
+  $("diag").style.display = "block";
+  renderDiag();
+}
+function renderDiag(){
+  var L = [];
+  L.push("【环境】");
+  L.push("UA: " + navigator.userAgent);
+  L.push("安卓: " + (isAndroid ? "是" : "否") + "  (只有安卓手机才有参考价值)");
+  L.push("");
+  L.push("【语音接口】");
+  L.push("speechSynthesis 对象: " + (window.speechSynthesis ? "有" : "【没有】"));
+  L.push("SpeechSynthesisUtterance: " + (typeof SpeechSynthesisUtterance === "function" ? "有" : "【没有】"));
+  L.push("AudioContext: " + (window.AudioContext || window.webkitAudioContext ? "有" : "没有"));
+  L.push("");
+  L.push("【语音清单】");
+  var locals = [], clouds = [];
+  for(var q=0;q<voices.length;q++){
+    if(voices[q].localService === false) clouds.push(voices[q]);
+    else locals.push(voices[q]);
+  }
+  L.push("总数量: " + voices.length + " 个  (本地 " + locals.length + " / 云端 " + clouds.length + ")");
+  L.push("▶ 手机上只有【本地】语音能离线发声，云端要联网且常不可用");
+  L.push("");
+  L.push("本地语音:");
+  if(!locals.length){
+    L.push("  【一个都没有】—— 这就是没声音的原因");
+  }
+  for(var i=0;i<locals.length && i<15;i++){
+    L.push("  " + (i+1) + ". " + locals[i].name + " | " + locals[i].lang);
+  }
+  if(locals.length > 15){ L.push("  ...还有 " + (locals.length-15) + " 个"); }
+  L.push("中文语音: " + (zhVoice ? (zhVoice.name + " | " + (zhVoice.localService === false ? "云端" : "本地")) : "【无】"));
+  L.push("英文语音: " + (enVoice ? (enVoice.name + " | " + (enVoice.localService === false ? "云端" : "本地")) : "【无】"));
+  L.push("");
+  L.push("【发声统计】");
+  L.push("尝试次数: " + spDiag.tries);
+  L.push("成功开始: " + spDiag.started);
+  L.push("判定不可用: " + (speechBroken ? "是" : "否"));
+  L.push("最后错误: " + (spDiag.lastError || "无"));
+  if(spDiag.errors.length){
+    L.push("错误记录:");
+    for(var k=Math.max(0, spDiag.errors.length-8); k<spDiag.errors.length; k++){
+      L.push("  - " + spDiag.errors[k]);
+    }
+  }
+  L.push("");
+  L.push("【结论建议】");
+  if(!window.speechSynthesis){
+    L.push("这个浏览器不支持网页语音，请换 Chrome 浏览器打开本文件。");
+  } else if(!voices.length && spDiag.started === 0){
+    L.push("浏览器报告 0 个语音，且从未成功发声。");
+    L.push("解决办法：到 系统设置 → 无障碍/更多设置 → 文字转语音(TTS)，");
+    L.push("确认已选择语音引擎并下载中文语音包；然后用 Chrome 打开。");
+  } else if(locals.length === 0){
+    L.push("【关键】浏览器列出 " + voices.length + " 个语音，但本地语音 0 个。");
+    L.push("国产 ROM 常见：网页语音只暴露云端语音，而云端在网页里用不了。");
+    L.push("解决办法：");
+    L.push("1) 系统设置 → 更多设置/无障碍 → 文字转语音，选小爱/讯飞等引擎并下载中文离线语音");
+    L.push("2) 改用 Chrome 浏览器打开本文件");
+    L.push("3) 若仍不行，用手机自带「屏幕朗读/随选朗读」功能替代");
+  } else if(spDiag.started === 0 && spDiag.tries > 0){
+    L.push("浏览器能列出语音，但发声全部被拒。多半是自动播放限制。");
+    L.push("解决办法：点一下「测试发声」按钮下面再试，或换 Chrome。");
+  } else {
+    L.push("看起来正常。若仍听不到，请检查手机媒体音量。");
+  }
+  $("diagOut").textContent = L.join("\n");
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  loadSet();
+  $("rate").value = S.rate;
+  $("rateVal").textContent = S.rate;
+  $("autoNext").checked = !!S.autoNext;
+  S.autoDelay = parseInt(S.autoDelay, 10) || 3;
+  $("autoDelay").value = String(S.autoDelay);
+  $("hintSound").checked = !!S.hintSound;
+  $("optDedupe").checked = !!S.dedupe;
+  $("optPunct").checked = !!S.punct;
+  $("optShuffle").checked = !!S.shuffle;
+  if(S.lastText){ $("txt").value = S.lastText; }
+  bind();
+  setTimeout(function(){
+    if(!hasSpeech()){
+      toast("此浏览器不支持网页语音，请换 Chrome 打开（点右上角 ? 看诊断）");
+    }
+  }, 1500);
+  renderLogs();
+  updateCount();
+  refreshVoices();
+}
+
+window.addEventListener("load", boot);
+window.addEventListener("pagehide", function(){ saveSet(); });
+</script>
+</body>
+</html>
