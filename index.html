@@ -123,7 +123,8 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
 .daygrp{color:var(--yellow);font-size:13px;font-weight:700;padding:10px 8px 4px}
 .logitem{padding:10px 8px;border-radius:8px;font-size:14px;color:#c9d1e0;cursor:pointer;display:block;width:100%;text-align:left;background:transparent;border:none;font-family:inherit}
 .logitem:active{background:var(--panel2)}
-.logitem.sel{background:var(--panel2);color:#fff}
+.logitem.sel{background:#3b82f6;color:#fff;box-shadow:0 0 0 1px #60a5fa inset}
+.logitem.sel .logtime{color:#dbeafe}
 .hintrow{display:flex;gap:8px;padding:0 12px 10px;flex:none;flex-wrap:wrap}
 .empty{color:var(--dim);padding:24px;text-align:center;font-size:14px}
 
@@ -178,9 +179,8 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
       </div>
       <div class="bar bar4 bar5">
         <select id="ttsEngine" class="sel" title="语音来源">
-          <option value="auto">语音：自动</option>
-          <option value="local">语音：本地(浏览器)</option>
           <option value="online">语音：微软在线</option>
+          <option value="local">语音：本地(浏览器)</option>
         </select>
         <select id="onlineVoice" class="sel" title="在线音色">
           <option value="yunxi">云希(中文男声)</option>
@@ -216,6 +216,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
         <span id="countlbl"></span>
       </div>
       <div class="row" style="justify-content:flex-end;padding-bottom:14px">
+        <button class="btn" id="btnPaste">粘贴剪贴板</button>
         <button class="btn" id="btnClear">清空</button>
         <button class="btn primary" id="btnGen">生成卡片</button>
       </div>
@@ -225,7 +226,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
     <section class="view" id="v-log">
       <div class="stats" id="stats">累计 0 次听写</div>
       <div class="hintrow">
-        <button class="btn primary" id="btnImportList">导入词表</button>
+        <button class="btn primary" id="btnImportList">导入到词表</button>
         <input type="file" id="fileIn" accept=".txt,.csv,.json,text/plain" style="display:none">
         <button class="btn" id="btnDel" style="margin-left:auto">删除这条</button>
       </div>
@@ -235,6 +236,30 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:none;border-ra
       </div>
     </section>
   </main>
+</div>
+<div id="guide" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:210;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch">
+  <div style="max-width:600px;margin:20px auto;background:#171a21;border:1px solid #2a2f3a;border-radius:14px;padding:18px 18px 20px">
+    <div style="display:flex;align-items:center;margin-bottom:12px">
+      <b style="color:#f5c518;font-size:18px">使用说明</b>
+      <span style="flex:1"></span>
+      <button class="btn" id="btnGuideClose" style="padding:7px 14px">知道啦</button>
+    </div>
+
+    <div style="font-size:14px;line-height:1.85;color:#c9d1e0">
+      <p style="margin:0 0 12px"><b style="color:#fff">语音引擎</b><br>
+      优先使用<b style="color:#f5c518">微软语音包</b>（在线，音质更好），
+      网络不佳会自动切换<b>本地语音包</b>。</p>
+
+      <p style="margin:0 0 10px"><b style="color:#fff">词表的词组</b><br>
+      以<b style="color:#f5c518">空格</b>为间隔，每个卡片分开。</p>
+
+      <p style="margin:0 0 8px"><b style="color:#fff">用豆包拍照课文内容</b>，把这段提示词发给它：</p>
+      <div id="promptBox" style="background:#0b0d10;border:1px solid #2a2f3a;border-radius:10px;padding:12px;font-size:13px;line-height:1.7;color:#8fe38f;white-space:pre-wrap;word-break:break-all;margin-bottom:10px">以空格间隔开每个单词或者词语或者句子。以纯文本发给我，不需要任何多余回复。</div>
+      <button class="btn primary" id="btnCopyPrompt" style="width:100%;margin-bottom:14px">复制这段提示词</button>
+
+      <p style="margin:0"><b style="color:#fff">复制文本粘贴在词表</b>，即可开始使用。</p>
+    </div>
+  </div>
 </div>
 <div id="diag" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch">
   <div style="max-width:640px;margin:0 auto">
@@ -257,7 +282,7 @@ var KEY_SET = "dict_settings_v1";
 var S = {
   rate: 100, autoNext: false, hintSound: true, autoDelay: 3,
   dedupe: false, punct: false, shuffle: false, lastText: "",
-  tts: "auto", voice: "yunxi"
+  tts: "online", voice: "yunxi"
 };
 
 var cards = [];       // {text, covered, cur, picked, revealedUntil}
@@ -368,21 +393,18 @@ function onlineVoiceLabel(){
 function speakText(text, onEnd){
   if(!useOnline()) return doSpeak(text, onEnd);
   return onTtsSpeak(text, onEnd, function(err){
-    // 在线失败 -> 本地有语音就顶上, 别让孩子对着无声干等
-    if(hasSpeech() && localVoiceReady() && S.tts !== "online"){
+    // 微软在线是首选; 断网/失败就自动顶上本地语音, 别让孩子对着无声干等
+    if(hasSpeech()){
       var ok = doSpeak(text, onEnd);
-      if(ok){ setStatus("在线语音失败（" + err + "），已切本地语音"); return; }
+      if(ok){ setStatus("微软语音失败（" + err + "），已自动切本地语音"); return; }
     }
-    if(S.tts === "online"){
-      setStatus("在线语音失败（" + err + "），检查手机联网，点 ? 看诊断");
-    }
+    setStatus("微软语音失败（" + err + "），本地语音也不可用，点 ? 看诊断");
     if(onEnd) onEnd();
   });
 }
 function useOnline(){
-  if(S.tts === "online") return true;
-  if(S.tts === "local") return false;
-  return !localVoiceReady() && hasOnlineTTS();   // auto: 本地真有本地语音才用本地
+  // 默认(以及缺省值)一律用微软在线; 只有用户明确选本地才走浏览器
+  return S.tts !== "local" && hasOnlineTTS();
 }
 function localVoiceReady(){
   if(!hasSpeech()) return false;
@@ -761,6 +783,138 @@ function onTtsSpeak(text, onEnd, onFail){
   return true;
 }
 
+/* ---------- 预取: 按 5 个一组往后缓存 --------
+ * 听写时卡到哪张才去合成, 换卡会有 1~3 秒空档。
+ * 这里在后台按"组"提前把后面 5 个词的音频合成好放进 cache,
+ * 用的是一条独立的静默 WebSocket, 不碰 onlineAudio, 也不打断当前朗读。 */
+var PREFETCH_GROUP = 5;          // 一组 5 个
+var prefetchState = { running:false, queue:[], done:{}, failed:{}, ws:null, timer:null };
+
+function pfKey(text){ return S.voice + "|" + S.rate + "|" + text; }
+
+/* 把 idx 开始的 5 个词排进队列 (只排还没缓存的) */
+function prefetchGroupFrom(idx){
+  if(!useOnline() || !hasOnlineTTS()) return;
+  var end = Math.min(cards.length, idx + PREFETCH_GROUP);
+  for(var i = Math.max(0, idx); i < end; i++){
+    var t = cards[i] && cards[i].text;
+    if(!t) continue;
+    var k = pfKey(t);
+    if(onlineState.cache[k] || prefetchState.done[k]) continue;
+    if(prefetchState.queue.indexOf(t) >= 0) continue;
+    if(prefetchState.failed[k]) continue;
+    prefetchState.queue.push(t);
+  }
+  if(!prefetchState.running) runPrefetch();
+}
+
+function runPrefetch(){
+  if(prefetchState.running) return;
+  var text = prefetchState.queue.shift();
+  if(!text){ prefetchState.running = false; return; }
+  prefetchState.running = true;
+  var key = pfKey(text);
+  if(onlineState.cache[key] || prefetchState.done[key]){
+    prefetchState.running = false;
+    setTimeout(runPrefetch, 0);
+    return;
+  }
+  fetchOnlineAudio(text, function(blob, err){
+    if(blob){
+      onlineState.cache[key] = blob;
+      onlineState.cacheKeys.push(key);
+      while(onlineState.cacheKeys.length > 400){
+        delete onlineState.cache[onlineState.cacheKeys.shift()];
+      }
+      prefetchState.done[key] = 1;
+    } else {
+      prefetchState.failed[key] = err || "err";   // 失败的这个词不再重试, 读到时再走正常流程
+    }
+    prefetchState.running = false;
+    setTimeout(runPrefetch, 120);
+  });
+}
+
+function clearPrefetch(){
+  prefetchState.queue = [];
+  prefetchState.failed = {};
+  try{ if(prefetchState.ws){ prefetchState.ws.close(); } }catch(e){}
+  prefetchState.ws = null;
+  prefetchState.running = false;
+}
+
+/* 纯取音频, 不播放, 不占用 onlineAudio */
+function fetchOnlineAudio(text, cb){
+  var done = false;
+  function fin(blob, err){
+    if(done) return;
+    done = true;
+    try{ if(pfWs){ pfWs.close(); } }catch(e){}
+    cb(blob, err);
+  }
+  var pfWs = null;
+  var voice = voiceFor(text);
+  var gec = secMsGec();
+  var cid = mkId();
+  var url = TTS_WSS + "?TrustedClientToken=" + TTS_TRUSTED
+    + "&Sec-MS-GEC=" + encodeURIComponent(gec)
+    + "&Sec-MS-GEC-Version=" + TTS_VERSION
+    + "&ConnectionId=" + cid;
+  var chunks = [];
+  var timer = setTimeout(function(){ fin(null, "超时"); }, 12000);
+  try{ pfWs = new WebSocket(url); }
+  catch(e){ clearTimeout(timer); cb(null, "连接失败"); return; }
+  prefetchState.ws = pfWs;
+  pfWs.binaryType = "arraybuffer";
+  pfWs.onopen = function(){
+    var now = new Date().toString();
+    var cfg = "X-Timestamp:" + now + "\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n"
+      + JSON.stringify({ context:{ synthesis:{ audio:{
+          metadataoptions:{ sentenceBoundaryEnabled:false, wordBoundaryEnabled:false },
+          outputFormat:"audio-24khz-48kbitrate-mono-mp3"
+        } } } });
+    try{ pfWs.send(cfg); }catch(e){}
+    var pct = ((S.rate - 100) >= 0 ? "+" : "") + Math.round(S.rate - 100) + "%";
+    var ssml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="'
+      + (hasCJK(text) ? "zh-CN" : "en-US") + '"><voice name="' + voice + '">'
+      + '<prosody rate="' + pct + '" pitch="+0Hz">' + escapeXml(text) + "</prosody></voice></speak>";
+    var head = "X-RequestId:" + cid + "\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:" + now + "Z\r\nPath:ssml\r\n\r\n";
+    try{ pfWs.send(head + ssml); }catch(e){}
+  };
+  pfWs.onmessage = function(ev){
+    if(typeof ev.data === "string"){
+      if(ev.data.indexOf("Path:turn.end") >= 0){
+        clearTimeout(timer);
+        if(!chunks.length){ fin(null, "无音频"); return; }
+        var blob;
+        try{ blob = new Blob(chunks, { type:"audio/mpeg" }); }
+        catch(e){ fin(null, "组装失败"); return; }
+        if(blob.size < 600){ fin(null, "音频太短"); return; }
+        fin(blob, null);
+      }
+      return;
+    }
+    try{
+      var buf = new Uint8Array(ev.data);
+      var hlen = (buf[0] << 8) | buf[1];
+      var from = 2 + hlen;
+      if(buf.length > from){ chunks.push(buf.subarray(from)); }
+    }catch(e){}
+  };
+  pfWs.onerror = function(){ clearTimeout(timer); fin(null, "网络错误"); };
+  pfWs.onclose = function(){ if(!done){ clearTimeout(timer); fin(null, "连接关闭"); } };
+}
+
+function mkId(){
+  var cid = "";
+  try{
+    var ab = new Uint8Array(16);
+    crypto.getRandomValues(ab);
+    for(var i=0;i<ab.length;i++) cid += ("0"+ab[i].toString(16)).slice(-2);
+  }catch(e){ cid = String(Date.now()) + Math.random().toString(16).slice(2); }
+  return cid;
+}
+
 function playOnlineBlob(blob, onEnd){
   var url;
   try{ url = URL.createObjectURL(blob); }catch(e){ if(onEnd) onEnd(); return; }
@@ -1037,7 +1191,10 @@ function startDict(){
   visited = {};
   hintCount = 0; hintWords = [];
   current = -1;
+  clearPrefetch();
   setStatus("听写进行中...");
+  // 第一组先排上, 后面边说边补
+  prefetchGroupFrom(want);
   goto(want);
   recordNow("running");
 }
@@ -1045,6 +1202,7 @@ function startDict(){
 function stopDict(silent, keepRecord){
   if(window.speechSynthesis){ try{ window.speechSynthesis.cancel(); }catch(e){} }
   try{ onlineState.wsSeq++; onlineAudio.pause(); }catch(e){}
+  clearPrefetch();
   speaking = false; onlineState.playing = false;
   if(autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
   if(revealTimer){ clearTimeout(revealTimer); revealTimer = null; }
@@ -1087,6 +1245,8 @@ function goto(idx){
   updateProgress();
   scrollToCard(c);
   speakCurrent();
+  // 每走到 5 的整倍数, 把后面 5 个补进缓存
+  if(useOnline() && (idx % PREFETCH_GROUP) === 0) prefetchGroupFrom(idx);
   recordNow("running");
 }
 
@@ -1251,9 +1411,86 @@ function showDetail(s){
   lines.push("本次听写过的词：");
   lines.push("  " + ((s.words||[]).join("  ") || "（无）"));
   lines.push("");
-  lines.push("完整词表：");
+  lines.push("完整词表（点上面「导入到词表」可放回词表页）：");
   lines.push("  " + (s.all_words||[]).join("  "));
   $("logdetail").textContent = lines.join("\n");
+}
+
+/* ---------- 通用复制 ---------- */
+function copyText(text, cb){
+  function legacy(){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try{ ok = document.execCommand("copy"); }catch(e){}
+    document.body.removeChild(ta);
+    cb(ok);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ cb(true); }).catch(legacy);
+  } else { legacy(); }
+}
+
+/* ---------- 首次打开的使用说明 ---------- */
+var KEY_GUIDE = "dict_guide_seen_v1";
+var GUIDE_PROMPT = "以空格间隔开每个单词或者词语或者句子。以纯文本发给我，不需要任何多余回复。";
+
+function maybeShowGuide(){
+  var seen = false;
+  try{ seen = !!localStorage.getItem(KEY_GUIDE); }catch(e){}
+  if(seen) return;
+  $("guide").style.display = "block";
+}
+function closeGuide(){
+  $("guide").style.display = "none";
+  try{ localStorage.setItem(KEY_GUIDE, "1"); }catch(e){}
+}
+
+/* ---------- 从剪贴板粘贴 ---------- */
+/* 优先用异步 Clipboard API (https 下才有权限); 老浏览器退回 execCommand 方案 */
+function pasteFromClipboard(){
+  function apply(text){
+    text = String(text || "").replace(new RegExp(String.fromCharCode(13)+"?"+String.fromCharCode(10), "g"), String.fromCharCode(10)).trim();
+    if(!text){ toast("剪贴板是空的"); return; }
+    var box = $("txt");
+    // 已有内容就接在后面, 不覆盖用户正在编辑的东西
+    var cur = box.value;
+    if(cur && cur.trim()){ box.value = cur.replace(new RegExp("\\s+$"), "") + " " + text; }
+    else { box.value = text; }
+    S.lastText = box.value;
+    saveSet();
+    updateCount();
+    switchView("input");
+    setStatus("已从剪贴板粘贴 " + countWords(text) + " 个词");
+    toast("粘贴成功");
+  }
+  function fallback(){
+    var box = $("txt");
+    var prev = box.value;
+    try{
+      box.focus();
+      var ok = document.execCommand("paste");
+      if(!ok){ box.value = prev; throw new Error("execCommand refused"); }
+      S.lastText = box.value; saveSet(); updateCount();
+      toast("粘贴成功");
+    }catch(e){
+      box.value = prev;
+      toast("浏览器不让直接读剪贴板，请长按输入框手动粘贴");
+    }
+  }
+  if(navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(apply).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+function countWords(t){
+  var a = String(t||"").split(new RegExp("\\s+")), n = 0;
+  for(var i=0;i<a.length;i++){ if(a[i]) n++; }
+  return n;
 }
 
 /* ---------- 导入词表 ---------- */
@@ -1422,9 +1659,12 @@ function bind(){
   };
 
   $("rate").oninput = function(){
+    var oldRate = S.rate;
     S.rate = parseInt(this.value, 10) || 100;
     $("rateVal").textContent = S.rate;
     saveSet();
+    // 语速变了缓存的音频就对不上了
+    if(S.rate !== oldRate){ clearPrefetch(); }
   };
   $("autoNext").onchange = function(){ S.autoNext = this.checked; saveSet(); };
   $("autoDelay").onchange = function(){
@@ -1440,14 +1680,15 @@ function bind(){
     S.tts = this.value; saveSet();
     try{ onlineState.wsSeq++; onlineAudio.pause(); }catch(e){}
     if(window.speechSynthesis){ try{ window.speechSynthesis.cancel(); }catch(e){} }
-    var msg = (S.tts === "online") ? "在线语音：微软云希，需要联网"
-            : (S.tts === "local") ? "本地语音：浏览器自带" : "自动：本地没有语音时用在线";
+    var msg = (S.tts === "online") ? "微软在线语音（云希），需要联网"
+            : "本地语音：浏览器自带";
     toast(msg);
     speakText("语音已切换");
   };
   $("onlineVoice").onchange = function(){
     S.voice = this.value; saveSet();
     onlineState.cache = {}; onlineState.cacheKeys = [];
+    clearPrefetch();
     toast("音色：" + onlineVoiceLabel());
     speakText(hasCJK("中文") ? "这是微软云希的声音" : "this is Andrew");
   };
@@ -1461,6 +1702,15 @@ function bind(){
     window._sv = setTimeout(saveSet, 500);
     updateCount();
   };
+  $("btnPaste").onclick = function(){ pasteFromClipboard(); };
+  $("btnGuideClose").onclick = function(){ closeGuide(); };
+  $("btnCopyPrompt").onclick = function(){
+    var btn = this;
+    copyText(GUIDE_PROMPT, function(ok){
+      btn.textContent = ok ? "已复制 ✓" : "复制失败，长按上面文字手动复制";
+      setTimeout(function(){ btn.textContent = "复制这段提示词"; }, 1800);
+    });
+  };
   $("btnClear").onclick = function(){ $("txt").value = ""; S.lastText = ""; saveSet(); updateCount(); };
   $("btnGen").onclick = function(){
     var ws = parseWords($("txt").value, $("optPunct").checked, $("optDedupe").checked);
@@ -1470,7 +1720,19 @@ function bind(){
     setStatus("已生成 " + ws.length + " 张卡片，点开始听写");
   };
 
-  $("btnImportList").onclick = function(){ $("fileIn").click(); };
+  $("btnImportList").onclick = function(){
+    if(!selSession){ toast("先在下面选一条听写记录"); return; }
+    var list = (selSession.all_words && selSession.all_words.length)
+             ? selSession.all_words.slice()
+             : (selSession.words || []).slice();
+    if(!list.length){ toast("这条记录里没有词表"); return; }
+    $("txt").value = list.join(" ");
+    S.lastText = $("txt").value;
+    saveSet();
+    updateCount();
+    switchView("input");
+    toast("已导入 " + list.length + " 个词，点「生成卡片」开始");
+  };
   $("fileIn").onchange = function(){
     if(this.files && this.files[0]) importWordList(this.files[0]);
     this.value = "";
@@ -1587,7 +1849,7 @@ function renderDiag(){
   L.push("英文语音: " + (enVoice ? (enVoice.name + " | " + (enVoice.localService === false ? "云端" : "本地")) : "【无】"));
   L.push("");
   L.push("【当前语音来源】");
-  L.push("设置: " + (S.tts || "auto") + " -> 实际: " + (useOnline() ? "微软在线" : "浏览器本地"));
+  L.push("设置: " + (S.tts || "online") + " -> 实际: " + (useOnline() ? "微软在线" : "浏览器本地"));
   L.push("在线音色: " + onlineVoiceLabel() + "  (" + voiceFor("中") + ")");
   L.push("本地语音可用: " + (localVoiceReady() ? "是" : "否"));
   L.push("WebSocket / Audio: " + (hasOnlineTTS() ? "有" : "【没有】"));
@@ -1641,7 +1903,8 @@ function boot(){
   S.autoDelay = parseInt(S.autoDelay, 10) || 3;
   $("autoDelay").value = String(S.autoDelay);
   $("hintSound").checked = !!S.hintSound;
-  S.tts = S.tts || "auto"; S.voice = S.voice || "yunxi";
+  if(!S.tts || S.tts === "auto") S.tts = "online";   // 老版本存的是 auto
+  S.voice = S.voice || "yunxi";
   $("ttsEngine").value = S.tts;
   $("onlineVoice").value = S.voice;
   $("optDedupe").checked = !!S.dedupe;
@@ -1650,15 +1913,14 @@ function boot(){
   if(S.lastText){ $("txt").value = S.lastText; }
   bind();
   setTimeout(function(){
-    if(!hasSpeech() && S.tts === "local"){
+    if(S.tts === "local" && !hasSpeech()){
       toast("此浏览器不支持网页语音，请换 Chrome 打开（点右上角 ? 看诊断）");
-    } else if(!localVoiceReady() && hasOnlineTTS()){
-      toast("本机没有可用的本地语音，已自动使用微软在线云希");
     }
   }, 1500);
   renderLogs();
   updateCount();
   refreshVoices();
+  maybeShowGuide();
 }
 
 window.addEventListener("load", boot);
